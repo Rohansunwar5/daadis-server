@@ -74,6 +74,11 @@ export interface UpdateOrderParams {
   cancelReason?: string;
   returnReason?: string;
   notes?: string;
+  shipmentId?: string;
+  awbNumber?: string;
+  courierName?: string;
+  trackingUrl?: string;
+  labelUrl?: string;
 }
 
 export class OrderRepository {

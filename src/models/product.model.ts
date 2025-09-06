@@ -1,27 +1,20 @@
 import mongoose from 'mongoose';
 
-export enum ISizes {
-    XS = 'xs',
-    S = 's',
-    M = 'm',
-    L = 'l',
-    XL = 'xl',
-    XXL = 'xxl',
-    XXXL = 'xxxl'
+export enum IWeight {
+    KG = 'kg',
+    G = 'g',
 }
 
-const sizeStockSchema = new mongoose.Schema({
-    size: {
-        type: String,
-        required: true,
-        enum: ISizes
-    },
-    stock: {
-        type: Number,
-        required: true,
-        min: 0
-    }
-});
+export interface IDimensions {
+    l: number;
+    b: number;
+    h: number;
+}
+
+export interface IWeightValue {
+    number: number;
+    unit: IWeight;
+}
 
 const productSchema = new mongoose.Schema(
     {
@@ -41,20 +34,9 @@ const productSchema = new mongoose.Schema(
             type: mongoose.Types.ObjectId,
             required: true,
         },
-        subcategory: {
-            type: mongoose.Types.ObjectId,
-        },
-        sizeStock: [sizeStockSchema],
-        sizeChart: {
-            type: String,
-        },
         price: {
             type: Number,
             required: true,
-            min: 0,
-        },
-        originalPrice: {
-            type: Number,
             min: 0,
         },
         description: {
@@ -97,6 +79,45 @@ const productSchema = new mongoose.Schema(
             type: String,
             trim: true,
         }],
+        dimensions: {
+            l: {
+                type: Number,
+                required: true,
+            },
+            b: {
+                type: Number,
+                required: true,
+            },
+            h: {
+                type: Number,
+                required: true,
+            }
+        },
+        stock: {
+            type: Number,
+            required: true,
+            default: 0,
+        },
+        vegetarian: {
+            type: Boolean,
+            required: true,
+        },
+        quantitySold: {
+            type: Number,
+            default: 0,
+        },
+        weight: {
+            number: {
+                type: Number,
+                required: true,
+            },
+            unit: {
+                type: String,
+                required: true,
+                enum : IWeight,
+                default: IWeight.KG,
+            }
+        }
     }, { timestamps: true }
 );
 
@@ -104,9 +125,11 @@ productSchema.index({ name: 'text', description: 'text', tags: 'text' });
 productSchema.index({ category: 1 });
 productSchema.index({ price: 1 });
 
-export interface ISizeStock {
-    size: string;
-    stock: number;
+export interface IRating {
+    userId: mongoose.Types.ObjectId;
+    value: number;
+    review?: string;
+    createdAt: Date;
 }
 
 export interface IProduct extends mongoose.Schema {
@@ -114,22 +137,20 @@ export interface IProduct extends mongoose.Schema {
     name: string;
     code: string;
     category: mongoose.Types.ObjectId;
-    subcategory?: mongoose.Types.ObjectId;
-    sizeStock: ISizeStock[];
-    sizeChart?: string;
     price: number;
-    originalPrice?: number;
     description?: string;
     images: string [];
     offer?: mongoose.Types.ObjectId;
-    ratings: Array< {
-        userId: mongoose.Types.ObjectId;
-        value: number;
-        review?: string;
-        createdAt: Date;
-    }>;
     isActive: boolean;
-    tags?: string [];
+    ratings: IRating[];
+    tags?: string[];
+    dimensions: IDimensions;
+    stock: number;
+    vegetarian: boolean;
+    quantitySold?: number;
+    weight: IWeightValue;
+    createdAt?: Date;
+    updatedAt?: Date;
 }
 
 export default mongoose.model<IProduct>('Product', productSchema);

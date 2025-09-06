@@ -43,7 +43,7 @@ export const applyDiscount = async (req: Request, res: Response, next: NextFunct
 };
 
 export const clearCartItems = async (req: Request, res: Response, next: NextFunction) => {
-  const userId = req.user?._id;
+  const { _id: userId } = req.user;
   const cart = await cartService.clearCartItems(userId.toString());
   
   next(cart);

@@ -12,9 +12,6 @@ const cartItemSchema = new mongoose.Schema (
             min: 1, 
             default: 1,
         },
-        size: {
-            type: String,
-        },
         addedAt: {
             type: Date,
             default: Date.now
@@ -64,7 +61,6 @@ export interface ICartItem extends mongoose.Schema {
     _id: string;
     product: mongoose.Types.ObjectId,
     quantity: number,
-    size?: string,
     addedAt: Date;
 }
 

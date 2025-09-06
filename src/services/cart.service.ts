@@ -35,7 +35,6 @@ class CartService {
                     images: product.images,
                 },
                 quantity: item.quantity,
-                size: item.size,
                 addedAt: item.addedAt,
                 itemTotal: itemTotal
             };
@@ -64,13 +63,12 @@ class CartService {
         if (!product) throw new NotFoundError('Product not found');
         if(!product.isActive) throw new BadRequestError('Product is not available for sale');
 
-        const sizeStock = product.sizeStock.find(s => s.size === item.size);        
-        if (!sizeStock || sizeStock.stock < item.quantity) throw new BadRequestError('Insufficient stock for selected size');
+        // const sizeStock = product.sizeStock.find(s => s.size === item.size);        
+        // if (!sizeStock || sizeStock.stock < item.quantity) throw new BadRequestError('Insufficient stock for selected size');
         
         const cart = await this.getCart(userId);
         const existingItem = cart.items.find(i => 
-            i.product.toString() === item.product && 
-            i.size === item.size
+            i.product.toString() === item.product 
         );
 
         let updatedCart;
@@ -78,9 +76,9 @@ class CartService {
         if (existingItem) {
            const totalQuantity = existingItem.quantity + item.quantity;
 
-           if(sizeStock.stock < totalQuantity) {
-            throw new BadRequestError(`Insufficient stock. Available: ${sizeStock.stock}, requested total: ${totalQuantity}`);
-           }
+        //    if(sizeStock.stock < totalQuantity) {
+        //     throw new BadRequestError(`Insufficient stock. Available: ${sizeStock.stock}, requested total: ${totalQuantity}`);
+        //    }
 
            updatedCart = await this.updateCartItem(userId, existingItem._id.toString(), {
             quantity: totalQuantity
@@ -120,8 +118,8 @@ class CartService {
             const product = await productService.getProductById(item.product.toString());
             if (!product) throw new NotFoundError('Product not found');
 
-            const sizeStock = product.sizeStock.find(s => s.size === item.size);
-            if (!sizeStock || sizeStock.stock < updateData.quantity) throw new BadRequestError('Insufficient stock for selected size')
+            // const sizeStock = product.sizeStock.find(s => s.size === item.size);
+            // if (!sizeStock || sizeStock.stock < updateData.quantity) throw new BadRequestError('Insufficient stock for selected size')
         }
 
         const updatedCart = await this._cartRepository.updateCartItem(userId, itemId, { ...updateData });
@@ -283,22 +281,22 @@ class CartService {
                 }
 
                 // Validate size requirement
-                if (product.sizeStock && product.sizeStock.length > 0 && !item.size) {
-                    console.warn(`Size required for product: ${item.product}`);
-                    continue;
-                }
+                // if (product.sizeStock && product.sizeStock.length > 0 && !item.size) {
+                //     console.warn(`Size required for product: ${item.product}`);
+                //     continue;
+                // }
 
-                const sizeStock = product.sizeStock.find(s => s.size === item.size);
-                if (!sizeStock || sizeStock.stock < item.quantity) {
-                    // Add with available stock if some is available
-                    if (sizeStock && sizeStock.stock > 0) {
-                        validatedItems.push({
-                            ...item,
-                            quantity: sizeStock.stock
-                        });
-                    }
-                    continue;
-                }
+                // const sizeStock = product.sizeStock.find(s => s.size === item.size);
+                // if (!sizeStock || sizeStock.stock < item.quantity) {
+                //     // Add with available stock if some is available
+                //     if (sizeStock && sizeStock.stock > 0) {
+                //         validatedItems.push({
+                //             ...item,
+                //             quantity: sizeStock.stock
+                //         });
+                //     }
+                //     continue;
+                // }
 
                 validatedItems.push({ ...item });
             } catch (error) {
@@ -316,27 +314,26 @@ class CartService {
             const cartItemData: CartItemInput = {
                 product: item.product.toString(),
                 quantity: item.quantity,
-                size: item.size,
             };
             mergedMap.set(getKey(cartItemData), cartItemData);
         }
 
         // Merge in validated guest cart items
-        for (const item of validatedItems) {
-            const key = getKey(item);
-            if (mergedMap.has(key)) {
-                const existing = mergedMap.get(key)!;
-                // Check stock availability for merged quantity
-                const product = await productService.getProductById(item.product);
-                const sizeStock = product?.sizeStock.find(s => s.size === item.size);
-                const maxQuantity = sizeStock?.stock || 0;
-                const newQuantity = Math.min(existing.quantity + item.quantity, maxQuantity);
+        // for (const item of validatedItems) {
+        //     const key = getKey(item);
+        //     if (mergedMap.has(key)) {
+        //         const existing = mergedMap.get(key)!;
+        //         // Check stock availability for merged quantity
+        //         const product = await productService.getProductById(item.product);
+        //         // const sizeStock = product?.sizeStock.find(s => s.size === item.size);
+        //         // const maxQuantity = sizeStock?.stock || 0;
+        //         // const newQuantity = Math.min(existing.quantity + item.quantity, maxQuantity);
                 
-                mergedMap.set(key, { ...existing, quantity: newQuantity });
-            } else {
-                mergedMap.set(key, { ...item });
-            }
-        }
+        //         mergedMap.set(key, { ...existing, quantity: newQuantity });
+        //     } else {
+        //         mergedMap.set(key, { ...item });
+        //     }
+        // }
 
         const mergedItems = Array.from(mergedMap.values());
         return this._cartRepository.replaceCartItems(userId, mergedItems);
@@ -353,14 +350,14 @@ class CartService {
         if (!product.isActive) throw new BadRequestError('Product is not available');
         
         // Validate size requirement
-        if (product.sizeStock && product.sizeStock.length > 0 && !item.size) {
-            throw new BadRequestError('Size selection is required for this product');
-        }
+        // if (product.sizeStock && product.sizeStock.length > 0 && !item.size) {
+        //     throw new BadRequestError('Size selection is required for this product');
+        // }
         
-        const sizeStock = product.sizeStock.find(s => s.size === item.size);
-        if (!sizeStock || sizeStock.stock < item.quantity) {
-            throw new BadRequestError('Insufficient stock for selected size');
-        }
+        // const sizeStock = product.sizeStock.find(s => s.size === item.size);
+        // if (!sizeStock || sizeStock.stock < item.quantity) {
+        //     throw new BadRequestError('Insufficient stock for selected size');
+        // }
 
         let cart = await this._cartRepository.getCartBySessionId(sessionId);
         if (!cart) {
@@ -368,17 +365,16 @@ class CartService {
         }
 
         const existingItem = cart.items.find(i => 
-            i.product.toString() === item.product && 
-            i.size === item.size
+            i.product.toString() === item.product 
         );
 
         if (existingItem) {
             const totalQuantity = existingItem.quantity + item.quantity;
             
             // Validate total quantity
-            if (sizeStock.stock < totalQuantity) {
-                throw new BadRequestError(`Insufficient stock. Available: ${sizeStock.stock}, requested total: ${totalQuantity}`);
-            }
+            // if (sizeStock.stock < totalQuantity) {
+            //     throw new BadRequestError(`Insufficient stock. Available: ${sizeStock.stock}, requested total: ${totalQuantity}`);
+            // }
             
             return this._cartRepository.updateCartItemBySessionId(
                 sessionId, 
@@ -412,29 +408,29 @@ class CartService {
                     continue;
                 }
 
-                const sizeStock = product.sizeStock.find(s => s.size === item.size);
-                if (!sizeStock) {
-                    issues.push({
-                        itemId: item._id,
-                        productId: item.product,
-                        issue: 'Size no longer available'
-                    });
-                    continue;
-                }
+                // const sizeStock = product.sizeStock.find(s => s.size === item.size);
+                // if (!sizeStock) {
+                //     issues.push({
+                //         itemId: item._id,
+                //         productId: item.product,
+                //         issue: 'Size no longer available'
+                //     });
+                //     continue;
+                // }
 
-                if (sizeStock.stock < item.quantity) {
-                    issues.push({
-                        itemId: item._id,
-                        productId: item.product,
-                        issue: `Only ${sizeStock.stock} items available, but ${item.quantity} requested`
-                    });
-                    // Optionally update quantity to available stock
-                    validItems.push({
-                        ...item,
-                        quantity: Math.min(item.quantity, sizeStock.stock)
-                    });
-                    continue;
-                }
+                // if (sizeStock.stock < item.quantity) {
+                //     issues.push({
+                //         itemId: item._id,
+                //         productId: item.product,
+                //         issue: `Only ${sizeStock.stock} items available, but ${item.quantity} requested`
+                //     });
+                //     // Optionally update quantity to available stock
+                //     validItems.push({
+                //         ...item,
+                //         quantity: Math.min(item.quantity, sizeStock.stock)
+                //     });
+                //     continue;
+                // }
 
                 validItems.push(item);
             } catch (error) {

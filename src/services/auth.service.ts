@@ -67,14 +67,14 @@ class AuthService {
 
   // eslint-disable-next-line @typescript-eslint/no-unused-vars, @typescript-eslint/no-explicit-any
   async signup(params: any) {
-    const { firstName, lastName, email, password, phone } = params;
+    const { firstName, lastName, email, password, phoneNumber } = params;
     const existingUser = await this._userRepository.getUserByEmailId(email);
 
     if (existingUser) throw new BadRequestError('Email address already exists');
 
     const hashedPassword = await this.hashPassword(password);
     const user = await this._userRepository.onBoardUser({
-      firstName, lastName, email, password: hashedPassword, phone
+      firstName, lastName, email, password: hashedPassword, phoneNumber
     });
     
     if (!user) throw new InternalServerError('Failed to Onboard user');
@@ -121,7 +121,7 @@ class AuthService {
   firstName?: string;
   lastName?: string;
   email?: string;
-  phone?: string;
+  phoneNumber?: string;
   _id: string;
   addresses?: Array<{
     name?: string;
@@ -134,14 +134,14 @@ class AuthService {
     isDefault?: boolean;
   }>;
 }) {
-  const { firstName, lastName, email, phone, _id, addresses,
+  const { firstName, lastName, email, phoneNumber, _id, addresses,
   } = params;
 
     const user = await this._userRepository.updateUser({
       firstName,
       lastName,
       email,
-      phone,
+      phoneNumber,
       _id,
       addresses,
     });
@@ -192,8 +192,8 @@ class AuthService {
         firstName: googleData.firstName,
         lastName: googleData.lastName,
         email: googleData.email,
-        phone: '',
-        authProvider: IAuthProvider.GOGGLE,
+        phoneNumber: '',
+        authProvider: IAuthProvider.GOOGLE,
         verified: true,
         password: await this.generateRandomPassword()
       });
@@ -202,7 +202,7 @@ class AuthService {
       
       return user._id;
     
-    } else if (user.authProvider !== IAuthProvider.GOGGLE) {
+    } else if (user.authProvider !== IAuthProvider.GOOGLE) {
       throw new BadRequestError('Email already registered with password');
     }
 

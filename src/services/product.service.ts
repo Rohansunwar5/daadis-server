@@ -3,9 +3,7 @@ import { BadRequestError } from "../errors/bad-request.error";
 import { InternalServerError } from "../errors/internal-server.error";
 import { NotFoundError } from "../errors/not-found.error";
 import { CreateProductParams, CreateProductWithImagesParams, ListProductsParams, ProductRepository, UpdateProductParams, UpdateProductWithImagesParams, UpdateStockParams } from "../repository/product.repository";
-import subcategoryService from "./subcategory.service";
 import { uploadToCloudinary } from "../utils/cloudinary.util";
-import { throws } from "assert";
 
 interface SearchProductsParams {
   page: number;
@@ -16,10 +14,7 @@ class ProductService {
     constructor(private readonly _productRepository: ProductRepository) {}
 
     async createProduct(params: CreateProductWithImagesParams) {
-        if (!params.sizeStock || params.sizeStock.length === 0) throw new BadRequestError('At least one size with stock must be provided')
-        if (!params.code) throw new BadRequestError('Product code is required')
-
-        await this.validateCategorySubcategoryRelationship(params.category, params.subcategory);
+        if (!params.code) throw new BadRequestError('Product code is required');
 
         const existingProduct = await this._productRepository.getProductByCode(params.code);
         if (existingProduct) throw new BadRequestError('Product with this code already exists')
@@ -30,15 +25,15 @@ class ProductService {
             name: params.name,
             code: params.code,
             category: params.category,
-            subcategory: params.subcategory,
-            sizeStock: params.sizeStock,
             price: params.price,
-            originalPrice: params.originalPrice,
             description: params.description,
             images: imageUrls,
-            sizeChart: params.sizeChart,
             isActive: params.isActive ?? true,
-            tags: params.tags
+            tags: params.tags,
+            dimensions: params.dimensions,
+            stock: params.stock,
+            vegetarian: params.vegetarian,
+            weight: params.weight
         };
 
         const product = await this._productRepository.createProduct(productParams);
@@ -50,13 +45,6 @@ class ProductService {
     async updateProduct(id: string, params: UpdateProductWithImagesParams) {
         const product = await this._productRepository.getProductById(id);
         if (!product) throw new NotFoundError('Product not found');
-
-        if(params.category || params.subcategory) {
-            const categoryId = params.category || product.category.toString();
-            const subcategoryId = params.subcategory || product.subcategory?.toString();
-
-            await this.validateCategorySubcategoryRelationship(categoryId, subcategoryId);
-        }
 
         if (params.code && params.code !== product.code) {
             const existingProduct = await this._productRepository.getProductByCode(params.code);
@@ -74,26 +62,27 @@ class ProductService {
             }
         }
 
-
         const updateParams: UpdateProductParams = {
             name: params.name,
             code: params.code,
             category: params.category,
-            subcategory: params.subcategory,
-            sizeStock: params.sizeStock,
             price: params.price,
-            originalPrice: params.originalPrice,
             description: params.description,
-            images: imageUrls,
-            sizeChart: params.sizeChart,
+            images: params.files?.length ? imageUrls : undefined, 
             isActive: params.isActive,
-            tags: params.tags
+            tags: params.tags,
+            dimensions: params.dimensions,
+            stock: params.stock,
+            vegetarian: params.vegetarian,
+            weight: params.weight
         };
 
-        Object.keys(updateParams).forEach(key => 
-            updateParams[key as keyof UpdateProductParams] === undefined 
-                && delete updateParams[key as keyof UpdateProductParams]
-        );
+        Object.keys(updateParams).forEach(key => {
+            const value = updateParams[key as keyof UpdateProductParams];
+            if (value === undefined || value === null) {
+                delete updateParams[key as keyof UpdateProductParams];
+            }
+        });
 
         const updatedProduct = await this._productRepository.updateProduct(id, updateParams);
         if (!updatedProduct) {
@@ -103,15 +92,13 @@ class ProductService {
         return updatedProduct;
     }
 
-    async updateProductStock(params: UpdateStockParams) {
-        const { productId, size, quantity } = params;
-        
-        if (!productId || !size || quantity === undefined) {
-            throw new BadRequestError('Missing required fields for stock update');
-        }
 
-        const updatedProduct = await this._productRepository.updateProductStock(params);
-        if (!updatedProduct) throw new NotFoundError('Product or size not found')
+    async updateProductStock(params: UpdateStockParams) {
+        const { productId, quantity } = params;
+
+        const updatedProduct = await this._productRepository.updateProductStock({productId, quantity});
+
+        if (!updatedProduct) throw new NotFoundError('Product not found')
 
         return updatedProduct;
     }
@@ -161,23 +148,22 @@ class ProductService {
         return this._productRepository.searchProducts(query, { page, limit});
     }
 
-    async getAvailableSizes(productId: string) {
-        return this._productRepository.getAvailableSizes(productId);
-    }
+    // async getAvailableSizes(productId: string) {
+    //     return this._productRepository.getAvailableSizes(productId);
+    // }
 
-     async reduceStockForOrder(orderItems: Array<{ productId: string; size: string; quantity: number; productName?: string }>) {
+     async reduceStockForOrder(orderItems: Array<{ productId: string; quantity: number; productName?: string }>) {
         if (!orderItems || orderItems.length === 0) {
             throw new BadRequestError('No order items provided for stock reduction');
         }
 
         for (const item of orderItems) {
-            if (!item.productId || !item.size || !item.quantity || item.quantity <= 0) {
+            if (!item.productId || !item.quantity || item.quantity <= 0) {
                 throw new BadRequestError('Invalid order item data for stock reduction');
             }
         }
 
         await this._validateStockAvailability(orderItems);
-
         const session = await this._productRepository.startSession();
         
         try {
@@ -185,20 +171,19 @@ class ProductService {
                 for (const item of orderItems) {
                     const result = await this._productRepository.reduceProductStock(
                         item.productId,
-                        item.size,
                         item.quantity,
                         session
                     );
 
                     if (result.matchedCount === 0) {
                         throw new BadRequestError(
-                            `Product not found or insufficient stock: ${item.productName || item.productId} (${item.size})`
+                            `Product not found or insufficient stock: ${item.productName || item.productId}`
                         );
                     }
 
                     if (result.modifiedCount === 0) {
                         throw new BadRequestError(
-                            `Failed to reduce stock for: ${item.productName || item.productId} (${item.size})`
+                            `Failed to reduce stock for: ${item.productName || item.productId}`
                         );
                     }
                 }
@@ -221,64 +206,32 @@ class ProductService {
         return this._validateStockAvailability(orderItems);
     }
 
-    private async _validateStockAvailability(orderItems: Array<{ productId: string; size: string; quantity: number; productName?: string }>) {
+    private async _validateStockAvailability(orderItems: Array<{ productId: string;  quantity: number; productName?: string }>) {
         const insufficientItems = [];
 
-        const stockItems = orderItems.map(item => ({ productId: item.productId, size: item.size }));
-        
-        const currentStocks = await this._productRepository.getMultipleProductStocks(stockItems);
+        for (const orderItem of orderItems) {
+            const currentStock = await this._productRepository.getProductStock(orderItem.productId);
 
-        for (let i = 0; i < orderItems.length; i++) {
-            const orderItem = orderItems[i];
-            const currentStock = currentStocks[i];
-
-            if (currentStock.stock === 0) {
-                const exists = await this._productRepository.checkProductSizeExists(
-                    orderItem.productId, 
-                    orderItem.size
-                );
-                
-                if (!exists) {
-                    insufficientItems.push({
-                        productId: orderItem.productId,
-                        productName: orderItem.productName,
-                        size: orderItem.size,
-                        requestedQuantity: orderItem.quantity,
-                        availableStock: 0,
-                        reason: 'Product or size not found'
-                    });
-                    continue;
-                }
-            }
-
-            if (currentStock.stock < orderItem.quantity) {
+            if(currentStock < orderItem.quantity) {
                 insufficientItems.push({
                     productId: orderItem.productId,
                     productName: orderItem.productName,
-                    size: orderItem.size,
                     requestedQuantity: orderItem.quantity,
-                    availableStock: currentStock.stock,
+                    availableStock: currentStock,
                     reason: 'Insufficient stock'
-                });
+                })
             }
-        }
+        } 
 
         if (insufficientItems.length > 0) {
             const errorMessage = insufficientItems.map(item => 
-                `${item.productName || item.productId} (${item.size}): ` +
+                `${item.productName || item.productId}: ` +
                 `requested ${item.requestedQuantity}, available ${item.availableStock} - ${item.reason}`
             ).join('; ');
-
             throw new BadRequestError(`Stock validation failed: ${errorMessage}`);
         }
 
         return { success: true, message: 'Stock validation passed' };
-    }
-
-    async getProductsBySubcategory(subcategoryId: string, params: SearchProductsParams) {
-        const { page, limit } = params;
-
-        return this._productRepository.getProductsBySubcategory(subcategoryId, { page, limit});
     }
 
     async addProductRating(productId: string, userId: string, rating: number, review?: string) {
@@ -289,13 +242,12 @@ class ProductService {
             throw new BadRequestError('Rating must be between 1 and 5');
         }
 
-        // Check if user already rated this product
         const existingRatingIndex = product.ratings.findIndex(
             r => r.userId.toString() === userId
         );
 
         const ratingData = {
-            userId: new mongoose.Types.ObjectId(userId), // ✅ Convert string to ObjectId
+            userId: new mongoose.Types.ObjectId(userId), 
             value: rating,
             review: review || '',
             createdAt: new Date()
@@ -303,11 +255,9 @@ class ProductService {
 
         let updatedRatings;
         if (existingRatingIndex !== -1) {
-            // Update existing rating
             updatedRatings = [...product.ratings];
             updatedRatings[existingRatingIndex] = ratingData;
         } else {
-            // Add new rating
             updatedRatings = [...product.ratings, ratingData];
         }
 
@@ -336,22 +286,6 @@ class ProductService {
                 ? product.ratings.reduce((sum, r) => sum + r.value, 0) / product.ratings.length 
                 : 0
         };
-    }
-
-    private async validateCategorySubcategoryRelationship(categoryId: string, subcategoryId?: string) {
-        if(!subcategoryId) return
-
-        try {
-            const subcategory = await subcategoryService.getSubcategoryById(subcategoryId);
-            if (subcategory.category.toString() !== categoryId) {
-                throw new BadRequestError('Subcategory does not belong to the specified category');
-            }
-        } catch (error) {
-            if (error instanceof NotFoundError) {
-                throw new BadRequestError('Subcategory not found');
-            }
-            throw error;
-        }
     }
 }
 

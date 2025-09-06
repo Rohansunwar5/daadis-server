@@ -3,9 +3,28 @@ import productService from "../services/product.service";
 import { BadRequestError } from "../errors/bad-request.error";
 
 export const createProduct = async (req: Request, res: Response, next: NextFunction) => {
-    const { name, code, category, sizeStock, price, originalPrice, description, sizeChart, tags, subcategory } = req.body;
+    const { name,  code,  category,  price,  description,  tags,  stock, vegetarian, weightNumber, weightUnit, dimensionsL, dimensionsB, dimensionsH } = req.body;
     
-    const response = await productService.createProduct({ name, code, category, subcategory, sizeStock: JSON.parse(sizeStock), price: Number(price), originalPrice: Number(originalPrice), description, sizeChart, tags: JSON.parse(tags), files: req.files as Express.Multer.File[]});
+    const response = await productService.createProduct({ 
+        name, 
+        code, 
+        category, 
+        price: Number(price), 
+        description, 
+        tags: tags ? JSON.parse(tags) : [],
+        stock: Number(stock),
+        vegetarian: JSON.parse(vegetarian),
+        weight: {
+            number: Number(weightNumber),
+            unit: weightUnit
+        },
+        dimensions: {
+            l: Number(dimensionsL),
+            b: Number(dimensionsB),
+            h: Number(dimensionsH)
+        },
+        files: req.files as Express.Multer.File[]
+    });
 
     next(response);
 }
@@ -16,42 +35,56 @@ export const updateProduct = async (req: Request, res: Response, next: NextFunct
         name, 
         code, 
         category, 
-        subcategory,
-        sizeStock, 
-        sizeChart, 
         price, 
-        originalPrice, 
         description, 
         isActive, 
-        tags,  
+        tags, 
+        stock, 
+        vegetarian, 
+        weightNumber, 
+        weightUnit, 
+        dimensionsL, 
+        dimensionsB, 
+        dimensionsH 
     } = req.body;
 
+    console.log('Update Product ID:', id);
+    console.log('Request Body:', req.body);
+    
     const response = await productService.updateProduct(id, { 
         name,
         code,
         category,
-        subcategory,
-        sizeStock: sizeStock ? JSON.parse(sizeStock) : undefined,
-        sizeChart,
         price: price ? Number(price) : undefined,
-        originalPrice: originalPrice ? Number(originalPrice) : undefined,
         description,
-        isActive: isActive !== undefined ? JSON.parse(isActive) : undefined,
+        isActive: isActive !== undefined && isActive !== null ? JSON.parse(isActive) : undefined,
         tags: tags ? JSON.parse(tags) : undefined,
+        stock: stock ? Number(stock) : undefined, 
+        vegetarian: vegetarian !== undefined && vegetarian !== null ? JSON.parse(vegetarian) : undefined,
+        weight: (weightNumber && weightUnit) ? {
+            number: Number(weightNumber),
+            unit: weightUnit
+        } : undefined,
+        dimensions: (dimensionsL || dimensionsB || dimensionsH) ? {
+            l: dimensionsL ? Number(dimensionsL) : undefined,
+            b: dimensionsB ? Number(dimensionsB) : undefined,
+            h: dimensionsH ? Number(dimensionsH) : undefined
+        } : undefined,
         files: req.files as Express.Multer.File[]
     });
 
     next(response);
 }
 
+
 export const updateProductStock = async (req: Request, res: Response, next: NextFunction) => {
-    const { productId, size, quantity } = req.body;
+    const { productId, quantity } = req.body;
     
-    if (!productId || !size || quantity === undefined) {
+    if (!productId || quantity === undefined) {
         return next(new BadRequestError('Missing required fields for stock update'));
     }
 
-    const response = await productService.updateProductStock({ productId, size, quantity });
+    const response = await productService.updateProductStock({ productId, quantity });
 
     next(response);
 }
@@ -96,24 +129,5 @@ export const searchProducts = async (req: Request, res: Response, next: NextFunc
         limit: Number(limit)
     });
 
-    next(response);
-};
-
-
-export const getAvailableSizes = async (req: Request, res: Response, next: NextFunction) => {
-    const { productId } = req.params;
-    const response = await productService.getAvailableSizes(productId);
-    
-    next(response);
-};
-
-export const getProductsBySubcategory = async (req: Request, res: Response, next: NextFunction) => {
-    const { subcategoryId } = req.params;
-    const { page = 1 , limit = 10 } = req.query
-    const response = await productService.getProductsBySubcategory(subcategoryId, {
-        page: Number(page),
-        limit: Number(limit)
-    });
-    
     next(response);
 };

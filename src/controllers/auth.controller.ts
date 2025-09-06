@@ -9,8 +9,8 @@ export const genericLogin = async (req: Request, res: Response, next: NextFuncti
 };
 
 export const signup = async (req: Request, res: Response, next: NextFunction) => {
-  const { firstName, lastName, email, password, phone } = req.body;
-  const response = await authService.signup({ firstName, lastName, email, password, phone });
+  const { firstName, lastName, email, password, phoneNumber } = req.body;
+  const response = await authService.signup({ firstName, lastName, email, password, phoneNumber });
 
   next(response);
 };
@@ -23,22 +23,14 @@ export const profile = async (req: Request, res: Response, next: NextFunction) =
 };
 
 export const updateProfile = async (req: Request, res: Response, next: NextFunction) => {
-  console.log('[AuthController] updateProfile - Request received:', {
-    user: req.user, // Log the user from middleware
-    body: req.body,
-    headers: req.headers,
-  });
-
   try {
     const { _id } = req.user;
-    const { firstName, lastName, email, phone,  addresses } = req.body;
+    const { firstName, lastName, email, phoneNumber,  addresses } = req.body;
 
-    console.log('[AuthController] updateProfile - Calling authService.updateProfile');
     const response = await authService.updateProfile({ 
-      firstName, lastName, email, phone, _id, addresses 
+      firstName, lastName, email, phoneNumber, _id, addresses 
     });
 
-    console.log('[AuthController] updateProfile - Service response:', response);
     next(response);
   } catch (error) {
     console.error('[AuthController] updateProfile - Error:', error);

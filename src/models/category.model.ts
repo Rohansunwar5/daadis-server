@@ -1,4 +1,3 @@
-// category.model.ts
 import mongoose from 'mongoose';
 
 const categorySchema = new mongoose.Schema(
@@ -17,6 +16,7 @@ const categorySchema = new mongoose.Schema(
     },
     image: {
       type: String,
+      required: true
     },
     isActive: {
       type: Boolean,

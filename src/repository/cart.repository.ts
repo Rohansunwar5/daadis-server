@@ -5,12 +5,10 @@ import { DiscountCalculationResult } from "./discount.repository";
 export interface CartItemInput {
   product: string;
   quantity: number;
-  size?: string;
 }
 
 export interface UpdateCartItemInput {
   quantity?: number;
-  size?: string;
 }
 
 export interface ApplyDiscountInput {
@@ -46,9 +44,6 @@ export class CartRepository {
     
     if (updateData.quantity !== undefined) {
         update['items.$.quantity'] = updateData.quantity;
-    }
-    if (updateData.size !== undefined) {
-        update['items.$.size'] = updateData.size;
     }
 
     return this._model.findOneAndUpdate(
@@ -155,10 +150,7 @@ export class CartRepository {
         if (updateData.quantity !== undefined) {
             update['items.$.quantity'] = updateData.quantity;
         }
-        if (updateData.size !== undefined) {
-            update['items.$.size'] = updateData.size;
-        }
-
+        
         return this._model.findOneAndUpdate(
             { sessionId, 'items._id': itemId, isActive: true },
             { $set: update },

@@ -1,22 +1,64 @@
 import { BadRequestError } from "../errors/bad-request.error";
+import { InternalServerError } from "../errors/internal-server.error";
 import { NotFoundError } from "../errors/not-found.error";
-import { CategoryRepository } from "../repository/category.repository";
+import { CategoryRepository, IUpdateCategoryParams } from "../repository/category.repository";
+import { uploadToCloudinary } from "../utils/cloudinary.util";
+
+interface CreateCategoryParams {
+    name: string;
+    description?: string;
+    file?: Express.Multer.File;
+    existingImage?: string;
+}
 
 class CategoryService {
     constructor(private readonly _categoryRepository: CategoryRepository) {}
 
-    async createCategory (params: { name: string; description?: string; image?: string }) {
+    async createCategory (params:CreateCategoryParams) {
         const existingCategory = await this._categoryRepository.getCategoryByName(params.name);
         if (existingCategory) {
             throw new BadRequestError('Category with this name already exists');
         }
 
-        const category = await this._categoryRepository.createCategory({
-            ...params,
-            name: params.name.trim()
+        const imageUrl = await this.handleImageUpload({ 
+            file: params.file, 
+            existingImage: params.existingImage 
         });
 
+
+        const category = await this._categoryRepository.createCategory({
+            name: params.name.trim(),
+            description: params.description,
+            image: imageUrl 
+        });
+
+        if(!category) throw new InternalServerError('Failed to create category');
+
         return category;
+    }
+
+    private async handleImageUpload(params: { 
+        file?: Express.Multer.File, 
+        existingImage?: string 
+    }): Promise<string> {
+        let imageUrl: string = '';
+
+        // If existing image URL is provided, use it
+        if (params.existingImage) {
+            imageUrl = params.existingImage;
+        }
+
+        // If a new file is uploaded, upload to cloudinary
+        if (params.file) {
+            imageUrl = await uploadToCloudinary(params.file);
+        }
+
+        // Require at least one image for category
+        if (!imageUrl) {
+            throw new BadRequestError('Category image is required');
+        }
+
+        return imageUrl;
     }
 
     async getAllCategories() {
@@ -39,18 +81,13 @@ class CategoryService {
         return deletedCategory;
     }
 
-    async updateCategory(id: string, params: {
-        name?: string;
-        description?: string;
-        image?: string;
-        isActive?: boolean;
-    }) {
+    async updateCategory(id: string, params: IUpdateCategoryParams
+    ) {
         if (!id) throw new BadRequestError('Category ID is required');
 
         const existingCategory = await this._categoryRepository.getCategoryById(id);
         if (!existingCategory) throw new NotFoundError('Category not found');
 
-        // Check if name already exists (if name is being updated)
         if (params.name && params.name !== existingCategory.name) {
             const duplicateCategory = await this._categoryRepository.getCategoryByName(params.name);
             if (duplicateCategory) {
@@ -58,7 +95,27 @@ class CategoryService {
             }
         }
 
-        const updatedCategory = await this._categoryRepository.updateCategory(id, params);
+        let imageUrl = existingCategory.image;
+
+        if (params.existingImage) {
+            imageUrl = params.existingImage;
+        }
+        
+        if (params.file) {
+            imageUrl = await this.handleImageUpload({ 
+                file: params.file, 
+                existingImage: params.existingImage 
+            });
+        }
+
+        const updateData = {
+            name: params.name,
+            description: params.description,
+            isActive: params.isActive,
+            image: imageUrl
+        };
+
+        const updatedCategory = await this._categoryRepository.updateCategory(id, updateData);
         if (!updatedCategory) throw new NotFoundError('Failed to update category');
 
         return updatedCategory;

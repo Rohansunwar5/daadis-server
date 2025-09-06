@@ -12,6 +12,7 @@ import mailService from "./mail.service";
 import orderService from "./order.service";
 import productService from "./product.service";
 import razorpayService from "./razorpay.service";
+import shiprocketService from "./shiprocket.service";
 
 export interface InitiatePaymentParams {
   orderId: string;
@@ -69,6 +70,114 @@ class PaymentService {
 
             await orderService.updateOrderStatus(orderId, IOrderStatus.PROCESSING);
 
+            try {
+                const orderDetails = await this._orderRepository.getOrderById(orderId);
+                const userDetails = await this._userRepository.getUserById(user); 
+                if (orderDetails && userDetails) {
+                    const shiprocketResponse = await shiprocketService.createShipment(orderDetails, userDetails.email);
+                    
+                    // Update order with Shiprocket details
+                    const shiprocket = await this._orderRepository.updateOrder(orderDetails._id, {
+                        shipmentId: shiprocketResponse.shipment_id?.toString(),
+                        awbNumber: shiprocketResponse.awb_code,
+                        courierName: shiprocketResponse.courier_name,
+                        trackingUrl: `https://shiprocket.co/tracking/${shiprocketResponse.awb_code}`
+                    });
+
+                    console.log(shiprocket);
+                    
+
+                    console.log('COD Shiprocket integration successful:', {
+                        orderId: orderDetails.orderNumber,
+                        shipmentId: shiprocketResponse.shipment_id,
+                        awbCode: shiprocketResponse.awb_code
+                    });
+                }
+            } catch (shiprocketError: any) {
+                console.error('COD Shiprocket integration failed (non-critical):', {
+                    orderId: orderId,
+                    error: shiprocketError.message
+                });
+            }
+
+            // ✅ ALSO ADD STOCK REDUCTION FOR COD
+            try {
+                const orderDetails = await this._orderRepository.getOrderById(orderId);
+                if (orderDetails) {
+                    const orderItems = orderDetails.items.map(item => ({
+                        productId: item.product.toString(),
+                        quantity: item.quantity,
+                        productName: item.productName
+                    }));
+                    
+                    if (orderItems.length > 0) {
+                        await productService.reduceStockForOrder(orderItems);
+                    }
+                }
+            } catch (stockError: any) {
+                console.error('CRITICAL: COD order confirmed but stock reduction failed:', {
+                    orderId: orderId,
+                    error: stockError.message,
+                    timestamp: new Date().toISOString()
+                });
+            }
+
+            // ✅ SEND CONFIRMATION EMAIL FOR COD
+            try {
+                const orderDetails = await this._orderRepository.getOrderById(orderId);
+                if (orderDetails) {
+                    const user = await this._userRepository.getUserById(orderDetails.user.toString());
+                    
+                    if (user) {
+                        const emailData = {
+                            firstName: user.firstName,
+                            lastName: user.lastName,
+                            email: user.email,
+                            orderNumber: orderDetails.orderNumber,
+                            orderDate: new Date(orderDetails.createdAt).toLocaleDateString('en-IN', {
+                                year: 'numeric',
+                                month: 'long',
+                                day: 'numeric'
+                            }),
+                            paymentDetails: {
+                                method: 'Cash on Delivery',
+                                amount: orderDetails.total,
+                                transactionId: 'COD'
+                            },
+                            items: orderDetails.items.map(item => ({
+                                productName: item.productName,
+                                productCode: item.productCode,
+                                quantity: item.quantity,
+                                priceAtPurchase: item.priceAtPurchase,
+                                itemTotal: item.itemTotal
+                            })),
+                            pricing: {
+                                subtotal: orderDetails.subtotal,
+                                totalDiscountAmount: orderDetails.totalDiscountAmount || 0,
+                                shippingCharge: orderDetails.shippingCharge,
+                                taxAmount: orderDetails.taxAmount,
+                                total: orderDetails.total
+                            }
+                        };
+
+                        await mailService.sendEmail(
+                            user.email,
+                            'order-confirmation-email.ejs',
+                            emailData,
+                            `Order Confirmation - ${orderDetails.orderNumber}`
+                        );
+                    }
+                }
+            } catch (emailError: any) {
+                console.error('COD email sending failed (non-critical):', {
+                    orderId: orderId,
+                    error: emailError.message
+                });
+            }
+
+            // ✅ CLEAR CART FOR COD
+            await cartService.clearCartItems(user);
+
             return { payment };
         }
 
@@ -97,7 +206,7 @@ class PaymentService {
 
         return { 
           payment,
-          order: razorpayOrder,
+        //   order: razorpayOrder, 
           key: config.RAZORPAY_KEY_ID
         };
     }
@@ -181,21 +290,44 @@ class PaymentService {
             );
 
             // 8. Get order details
-            const orderDetails = await this._orderRepository.getOrderById(
-                payment.orderId.toString()
-            );
+            const orderDetails = await this._orderRepository.getOrderById(payment.orderId.toString());
             if (!orderDetails) throw new InternalServerError('Order not found');
+            const user = await this._userRepository.getUserById(payment?.user.toString());
+            if (!user) throw new NotFoundError('User not found');
 
-             try {
-            const orderItems = orderDetails.items
-                .filter(item => item.size) // Only process items with size
-                .map(item => ({
-                    productId: item.product.toString(), // Use 'product' field from order schema
-                    size: item.size!, // Non-null assertion since we filtered above
-                    quantity: item.quantity,
-                    productName: item.productName
+            // 9. **NEW: Create Shiprocket shipment**
+            try {
+                const shiprocketResponse = await shiprocketService.createShipment(orderDetails, user.email);
+                
+                // Update order with Shiprocket details
+                await this._orderRepository.updateOrder(orderDetails._id, {
+                    shipmentId: shiprocketResponse.shipment_id?.toString(),
+                    awbNumber: shiprocketResponse.awb_code,
+                    courierName: shiprocketResponse.courier_name,
+                    trackingUrl: `https://shiprocket.co/tracking/${shiprocketResponse.awb_code}`
+                });
+
+                console.log('Shiprocket integration successful:', {
+                    orderId: orderDetails.orderNumber,
+                    shipmentId: shiprocketResponse.shipment_id,
+                    awbCode: shiprocketResponse.awb_code,
+                    customerEmail: user.email
+                });
+
+            } catch (shiprocketError: any) {
+                console.error('Shiprocket integration failed (non-critical):', {
+                    orderId: orderDetails.orderNumber,
+                    error: shiprocketError.message
+                });
+            }
+
+            try {
+                const orderItems = orderDetails.items
+                    .map(item => ({
+                        productId: item.product.toString(), 
+                        quantity: item.quantity,
+                        productName: item.productName
                 }));
-
             if (orderItems.length > 0) {
                 await productService.reduceStockForOrder(orderItems);
             }
@@ -215,13 +347,6 @@ class PaymentService {
             // 3. Mark order for manual review
             // For now, we'll continue with the process but log the critical error
         }
-
-
-            // 9. Get user details
-            const user = await this._userRepository.getUserById(
-                payment.user.toString()
-            );
-            if (!user) throw new NotFoundError('User not found');
 
             // 10. Prepare email data
             const emailData = {
@@ -243,7 +368,6 @@ class PaymentService {
                     productName: item.productName,
                     productCode: item.productCode,
                     quantity: item.quantity,
-                    size: item.size?.toUpperCase() || 'N/A',
                     priceAtPurchase: item.priceAtPurchase,
                     itemTotal: item.itemTotal
                 })),

@@ -56,6 +56,7 @@ class OrderService {
   async createOrder(input: CreateOrderInput): Promise<OrderSummary> {
     const { userId, shippingAddress, billingAddress, paymentMethod, notes } = input;
     const cartDetails = await cartService.getCartWithDetails(userId);
+    
     if (!cartDetails.items.length) throw new BadRequestError('Cart is empty')
 
     await this.validateStockAvailability(cartDetails.items);
@@ -66,17 +67,14 @@ class OrderService {
     const totalDiscountAmount = cartDetails.totals.discountAmount;
     const shippingCharge = this.calculateShippingCharge(subtotal);
     const taxAmount = this.calculateTax(subtotal - totalDiscountAmount + shippingCharge);
-
     const total = parseFloat((subtotal - totalDiscountAmount + shippingCharge + taxAmount).toFixed(2));
     
-    // order items
     const orderItems = cartDetails.items.map(item => ({
       product: item.product._id,
       productName: item.product.name,
       productCode: '', 
       productImage: item.product.images[0] || '',
       quantity: item.quantity,
-      size: item.size,
       priceAtPurchase: item.product.price,
       itemTotal: item.itemTotal
     }));
@@ -254,13 +252,10 @@ class OrderService {
         throw new NotFoundError(`Product not found: ${item.product.name}`);
       }
 
-      if (item.size) {
-        const sizeStock = product.sizeStock.find(s => s.size === item.size);
-        if (!sizeStock || sizeStock.stock < item.quantity) {
-          throw new BadRequestError(
-            `Insufficient stock for ${item.product.name} in size ${item.size}`
-          );
-        }
+      if (product.stock < item.quantity) {
+        throw new BadRequestError(
+            `Insufficient stock for ${item.product.name}. Available: ${product.stock}, Requested: ${item.quantity}`
+        );
       }
     }
   }
@@ -268,7 +263,6 @@ class OrderService {
   private async reserveStock(cartItems: any[]) {
     const orderItems = cartItems.map(item => ({
         productId: item.product._id,
-        size: item.size,
         quantity: item.quantity,
         productName: item.product.name
     }));
@@ -292,7 +286,6 @@ class OrderService {
         for (const item of stockItems) {
             await productService.updateProductStock({
                 productId: item.productId,
-                size: item.size,
                 quantity: item.quantity // Positive to add back
             });
         }
@@ -303,21 +296,21 @@ class OrderService {
   }
 
   private validateStatusTransition(currentStatus: IOrderStatus, newStatus: IOrderStatus) {
-    const validTransitions: Record<IOrderStatus, IOrderStatus[]> = {
-      [IOrderStatus.PENDING]: [IOrderStatus.PROCESSING, IOrderStatus.CANCELLED, IOrderStatus.FAILED],
-      [IOrderStatus.PROCESSING]: [IOrderStatus.SHIPPED, IOrderStatus.CANCELLED],
-      [IOrderStatus.SHIPPED]: [IOrderStatus.DELIVERED, IOrderStatus.CANCELLED],
-      [IOrderStatus.DELIVERED]: [IOrderStatus.RETURNED],
-      [IOrderStatus.CANCELLED]: [],
-      [IOrderStatus.FAILED]: [IOrderStatus.PENDING],
-      [IOrderStatus.RETURNED]: []
-    };
+    // const validTransitions: Record<IOrderStatus, IOrderStatus[]> = {
+    //   [IOrderStatus.PENDING]: [IOrderStatus.PROCESSING, IOrderStatus.CANCELLED, IOrderStatus.FAILED],
+    //   [IOrderStatus.PROCESSING]: [IOrderStatus.SHIPPED, IOrderStatus.CANCELLED],
+    //   [IOrderStatus.SHIPPED]: [IOrderStatus.DELIVERED, IOrderStatus.CANCELLED],
+    //   [IOrderStatus.DELIVERED]: [IOrderStatus.RETURNED],
+    //   [IOrderStatus.CANCELLED]: [],
+    //   [IOrderStatus.FAILED]: [IOrderStatus.PENDING],
+    //   [IOrderStatus.RETURNED]: []
+    // };
 
-    if (!validTransitions[currentStatus].includes(newStatus)) {
-      throw new BadRequestError(
-        `Invalid status transition from ${currentStatus} to ${newStatus}`
-      );
-    }
+    // if (!validTransitions[currentStatus].includes(newStatus)) {
+    //   throw new BadRequestError(
+    //     `Invalid status transition from ${currentStatus} to ${newStatus}`
+    //   );
+    // }
   }
 
   private canCancelOrder(status: IOrderStatus): boolean {

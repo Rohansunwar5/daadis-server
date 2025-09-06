@@ -1,19 +1,18 @@
-import mongoose from "mongoose";
-import productModel, { ISizeStock } from "../models/product.model";
+import productModel, { IDimensions, IRating, IWeightValue } from "../models/product.model";
 
 export interface CreateProductParams {
     name: string;
     code: string;
     category: string;
-    subcategory?: string;
-    sizeStock: ISizeStock[];
     price: number;
-    originalPrice?: number;
     description?: string;
     images: string[];
-    sizeChart?: string;
     isActive?: boolean;
-    tags?: string [];
+    tags?: string[];
+    dimensions: IDimensions;
+    stock: number;
+    vegetarian: boolean;
+    weight: IWeightValue;
 }
 
 export interface CreateProductWithImagesParams extends Omit<CreateProductParams, 'images'> {
@@ -25,21 +24,16 @@ export interface UpdateProductParams {
     name?: string;
     code?: string;
     category?: string;
-    subcategory?: string;
-    sizeStock?: ISizeStock[];
     price?: number;
-    originalPrice?: number;
     description?: string;
-    images?: string [];
-    sizeChart?: string;
+    images?: string[];
     isActive?: boolean;
     tags?: string[];
-    ratings?: Array< {
-        userId: mongoose.Types.ObjectId;
-        value: number;
-        review?: string;
-        createdAt: Date;
-    }>;
+    dimensions?: Partial<IDimensions>;
+    stock?: number;
+    vegetarian?: boolean;
+    weight?: IWeightValue;
+    ratings?: IRating[];
 }
 
 export interface UpdateProductWithImagesParams extends Omit<UpdateProductParams, 'images'> {
@@ -56,7 +50,6 @@ export interface ListProductsParams {
 
 export interface UpdateStockParams {
     productId: string;
-    size: string;
     quantity: number;
 }
 
@@ -68,22 +61,32 @@ export class ProductRepository {
     }
 
     async updateProductStock(params: UpdateStockParams) {
-        const { productId, size, quantity } = params;
+        const { productId, quantity } = params;
         
-        return this._model.findOneAndUpdate(
-            { 
-                _id: productId,
-                "sizeStock.size": size 
-            },
-            { $inc: { "sizeStock.$.stock": quantity } },
+        return this._model.findByIdAndUpdate(
+            productId,
+            { $inc: { stock: quantity } },
             { new: true }
         );
     }
 
     async updateProduct(id: string, params: UpdateProductParams) {
+        const updateData = { ...params };
+        
+        if (params.dimensions) {
+            const product = await this._model.findById(id);
+            if (product) {
+                updateData.dimensions = {
+                    l: params.dimensions.l ?? product.dimensions.l,
+                    b: params.dimensions.b ?? product.dimensions.b,
+                    h: params.dimensions.h ?? product.dimensions.h
+                };
+            }
+        }
+
         return this._model.findByIdAndUpdate(
             id, 
-            params, 
+            updateData, 
             { new: true, runValidators: true }
         );
     }
@@ -98,19 +101,19 @@ export class ProductRepository {
 
     async listProducts(params: ListProductsParams) {
         const { page, limit, sort, filters = {} } = params;
-
         const query: Record<string, any> = { isActive: true };
-
+        
         if (filters.category) query.category = filters.category;
-        if (filters.subcategory) query.subcategory = filters.subcategory;
         if (filters.minPrice || filters.maxPrice) {
             query.price = {};
             if (filters.minPrice) query.price.$gte = Number(filters.minPrice);
             if (filters.maxPrice) query.price.$lte = Number(filters.maxPrice);
         }
-        if (filters.size) {
-            query['sizeStock.size'] = filters.size;
-            query['sizeStock.stock'] = { $gt: 0 };
+        if (filters.vegetarian !== undefined) {
+            query.vegetarian = filters.vegetarian === 'true';
+        }
+        if (filters.inStock === 'true') {
+            query.stock = { $gt: 0 };
         }
         
         const [products, total] = await Promise.all([
@@ -120,7 +123,7 @@ export class ProductRepository {
                 .limit(limit),
             this._model.countDocuments(query)
         ]);
-
+        
         return {
             products,
             total,
@@ -131,20 +134,19 @@ export class ProductRepository {
 
     async getProductsByCategory(categoryId: string, params: Omit<ListProductsParams, 'filters'>) {
         const { page, limit } = params;
-
         const query = { 
             category: categoryId, 
             isActive: true,
-            'sizeStock.stock': { $gt: 0 }
+            stock: { $gt: 0 }
         };
-
+        
         const [products, total] = await Promise.all([
             this._model.find(query)
                 .skip((page - 1) * limit)
                 .limit(limit),
             this._model.countDocuments(query)
         ]);
-
+        
         return {
             products,
             total,
@@ -152,25 +154,18 @@ export class ProductRepository {
             pages: Math.ceil(total / limit)
         };
     }
-
-    async getAvailableSizes(productId: string): Promise<ISizeStock[]> {
-        const product = await this._model.findById(productId)
-            .select('sizeStock');
-        return product?.sizeStock.filter(s => s.stock > 0) || [];
-    }
     
-    async searchProducts(query: string, params: Omit<ListProductsParams, 'filters'> & { categoryId?: string; subcategoryId?: string }) {
-        const { page, limit, categoryId, subcategoryId } = params;
+    async searchProducts(query: string, params: Omit<ListProductsParams, 'filters'> & { categoryId?: string }) {
+        const { page, limit, categoryId } = params;
         
         const searchQuery: any = { 
             $text: { $search: query }, 
             isActive: true,
-            'sizeStock.stock': { $gt: 0 }
+            stock: { $gt: 0 }
         };
-
+        
         if (categoryId) searchQuery.category = categoryId;
-        if (subcategoryId) searchQuery.subcategory = subcategoryId;
-
+        
         const [products, total] = await Promise.all([
             this._model.find(searchQuery)
                 .sort({ score: { $meta: 'textScore' } })
@@ -178,7 +173,7 @@ export class ProductRepository {
                 .limit(limit),
             this._model.countDocuments(searchQuery)
         ]);
-
+        
         return {
             products,
             total,
@@ -187,77 +182,42 @@ export class ProductRepository {
         };
     }
 
-    async reduceProductStock(productId: string, size: string, quantity: number, session?: any) {
+    async reduceProductStock(productId: string, quantity: number, session?: any) {
         return this._model.updateOne(
             { 
                 _id: productId,
-                "sizeStock.size": size,
-                "sizeStock.stock": { $gte: quantity } // Ensure sufficient stock
+                stock: { $gte: quantity }
             },
-            { $inc: { "sizeStock.$.stock": -quantity } },
+            { 
+                $inc: { 
+                    stock: -quantity,
+                    quantitySold: quantity
+                }
+            },
             { session }
         );
     }
 
-    async getProductStock(productId: string, size: string) {
-        const product = await this._model.findOne(
-            { _id: productId, "sizeStock.size": size },
-            { "sizeStock.$": 1 }
-        );
-        
-        return product?.sizeStock[0]?.stock || 0;
-    }
-
-    async getMultipleProductStocks(items: Array<{ productId: string; size: string }>) {
-        const stockPromises = items.map(item => 
-            this.getProductStock(item.productId, item.size)
-                .then(stock => ({
-                    productId: item.productId,
-                    size: item.size,
-                    stock
-                }))
-        );
-        
-        return Promise.all(stockPromises);
-    }
-
-    async checkProductSizeExists(productId: string, size: string) {
-        const product = await this._model.findOne({
-            _id: productId,
-            "sizeStock.size": size
-        });
-        
-        return !!product;
+    async getProductStock(productId: string) {
+        const product = await this._model.findById(productId).select('stock');
+        return product?.stock || 0;
     }
 
     async startSession() {
         return this._model.db.startSession();
     }
 
-    async getProductsBySubcategory(subcategoryId: string, params: Omit<ListProductsParams, 'filters'>) {
-        const { page, limit } = params;
-
-        const query = { subcategory: subcategoryId, isActive: true, 'sizeStock.stock': { $gt: 0 }};
-
-        const [ products, total ] = await Promise.all([
-            this._model.find(query).skip((page - 1) * limit).limit(limit),
-            this._model.countDocuments(query)
-        ]);
-
-        return { products, total, page, pages: Math.ceil(total/limit)};
-    }
-
     async getLowStockProducts(threshold: number = 5) {
         return this._model.find({
-        isActive: true,
-        'sizeStock.stock': { $lte: threshold, $gt: 0 }
-        }).select('name code sizeStock');
+            isActive: true,
+            stock: { $lte: threshold, $gt: 0 }
+        }).select('name code stock');
     }
 
     async getOutOfStockProducts() {
         return this._model.find({
             isActive: true,
-            'sizeStock.stock': 0
-        }).select('name code sizeStock');
+            stock: 0
+        }).select('name code stock');
     }
 }

@@ -8,17 +8,21 @@ export interface ICreateCategoryParams {
 
 export interface IUpdateCategoryParams {
     name?: string;
-    category?: string;
     description?: string;
-    image?: string;
     isActive?: boolean;
+    file?: Express.Multer.File;
+    existingImage?: string; 
 }
 
 export class CategoryRepository {
     private _model = categoryModel;
 
-    async createCategory(params: ICreateCategoryParams): Promise<ICategory> {
-        return this._model.create(params);
+    async createCategory(params: ICreateCategoryParams) {
+        return this._model.create({
+            name: params.name,
+            description: params.description,
+            image: params.image
+        });
     }
 
     async getAllCategories(): Promise <ICategory[]> {

@@ -5,7 +5,7 @@ const PHONE_MIN_LENGTH = 9;
 
 export enum IAuthProvider {
   EMAIL = 'email',
-  GOGGLE = 'google'
+  GOOGLE = 'google'
 }
 
 const userSchema = new mongoose.Schema(
@@ -26,13 +26,9 @@ const userSchema = new mongoose.Schema(
       required: true,
       minLength: 2,
     },
-    phone: {
+    phoneNumber: {
       type: String,
-      // minLength: PHONE_MIN_LENGTH,
       trim: true,
-    },
-    img: {
-      type: String,
     },
     addresses: [{
       name: String,
@@ -56,6 +52,10 @@ const userSchema = new mongoose.Schema(
       enum: IAuthProvider,
       default: IAuthProvider.EMAIL
     },
+    luckyPoints: {
+      type: Number,
+      default: 0,
+    },
     isGuest: {
       type: Boolean,
       default: false,
@@ -74,10 +74,10 @@ export interface IUser extends mongoose.Document {
   firstName: string;
   lastName: string;
   email: string;
-  phone?: string;
+  phoneNumber?: string;
   authProvider: string;
-  img?: string;
   verified: boolean;
+  luckyPoints: Number;
   password?: string;
   addresses?: Array<{
     name: string;

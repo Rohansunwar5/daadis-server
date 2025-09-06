@@ -8,7 +8,8 @@ export enum IOrderStatus {
   DELIVERED = 'delivered',
   CANCELLED = 'cancelled',
   FAILED = 'failed',
-  RETURNED = 'returned'
+  RETURNED = 'returned',
+  PAID = 'paid',
 }
 
 const orderItemSchema = new mongoose.Schema({
@@ -32,9 +33,6 @@ const orderItemSchema = new mongoose.Schema({
     type: Number,
     required: true,
     min: 1,
-  },
-  size: {
-    type: String,
   },
   priceAtPurchase: {
     type: Number,
@@ -170,7 +168,7 @@ const orderSchema = new mongoose.Schema(
     },
     paymentMethod: {
       type: String,
-      enum: IPaymentMethod
+      enum: IPaymentMethod,
     },
     paymentStatus: {
       type: String,
@@ -201,6 +199,22 @@ const orderSchema = new mongoose.Schema(
     notes: {
       type: String,
       maxLength: 500,
+    },
+    // Shiprocket fields
+    shipmentId: {
+      type: String,
+    },
+    awbNumber: {
+      type: String,
+    },
+    courierName: {
+      type: String,
+    },
+    trackingUrl: {
+      type: String,
+    },
+    labelUrl: {
+      type: String,
     }
   },
   { timestamps: true }
@@ -209,6 +223,9 @@ const orderSchema = new mongoose.Schema(
 // Indexes for better query performance
 orderSchema.index({ user: 1, status: 1 });
 orderSchema.index({ user: 1, createdAt: -1 });
+orderSchema.index({ orderNumber: 1 });
+orderSchema.index({ awbNumber: 1 });
+orderSchema.index({ shipmentId: 1 });
 
 export interface IOrderItem {
   _id: string;
@@ -217,7 +234,6 @@ export interface IOrderItem {
   productCode: string;
   productImage: string;
   quantity: number;
-  size?: string;
   priceAtPurchase: number;
   itemTotal: number;
 }
@@ -231,6 +247,14 @@ export interface IAddress {
   pinCode: string;
   country: string;
   phone: string;
+}
+
+export interface IShiprocketDetails {
+  shipmentId?: string;
+  awbNumber?: string;
+  courierName?: string;
+  trackingUrl?: string;
+  labelUrl?: string;
 }
 
 export interface IOrder extends mongoose.Document {
@@ -256,8 +280,8 @@ export interface IOrder extends mongoose.Document {
   taxAmount: number;
   total: number;
   status: IOrderStatus;
-  paymentMethod?: string;
-  paymentStatus: string;
+  paymentMethod?: IPaymentMethod;
+  paymentStatus: IPaymentStatus;
   trackingNumber?: string;
   estimatedDeliveryDate?: Date;
   actualDeliveryDate?: Date;
@@ -266,6 +290,12 @@ export interface IOrder extends mongoose.Document {
   returnedAt?: Date;
   returnReason?: string;
   notes?: string;
+  // Shiprocket fields
+  shipmentId?: string;
+  awbNumber?: string;
+  courierName?: string;
+  trackingUrl?: string;
+  labelUrl?: string;
   createdAt: Date;
   updatedAt: Date;
 }

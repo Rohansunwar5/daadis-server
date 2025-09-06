@@ -1,4 +1,3 @@
-import { isPublic } from "ip";
 import mongoose from "mongoose";
 
 const wishlistItemSchema = new mongoose.Schema (
@@ -10,9 +9,6 @@ const wishlistItemSchema = new mongoose.Schema (
         addedAt: {
             type: Date,
             default: Date.now,
-        },
-        size: {
-            type: String,
         },
         priceWhenAdded: {
             type: Number,
@@ -45,7 +41,6 @@ export interface IWishlistItem {
     _id: string;
     product: mongoose.Types.ObjectId;
     addedAt: Date;
-    size?: string;
     priceWhenAdded?: number;
 }
 
@@ -60,4 +55,3 @@ export interface IWishlist extends mongoose.Document {
 }
 
 export default mongoose.model<IWishlist>('Wishlist', wishlistSchema);
-
