@@ -87,9 +87,9 @@ import redisClient from './services/cache';
   logger.info('DB connected');
   await redisClient.connect();
 
-  const port = process.env.PORT || '4010';
-  
-  app.listen(port, () => {
-    logger.info(`Server running on port ${port}`);
-  });
+ const port = parseInt(process.env.PORT || "4010", 10);
+
+app.listen(port, "0.0.0.0", () => {
+  logger.info(`Server running on port ${port}`);
+});
 })();
