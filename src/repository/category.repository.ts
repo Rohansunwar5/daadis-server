@@ -4,6 +4,7 @@ export interface ICreateCategoryParams {
     name: string;
     description?: string;
     image?: string;
+    hsn?: string;
 }
 
 export interface IUpdateCategoryParams {
@@ -12,6 +13,7 @@ export interface IUpdateCategoryParams {
     isActive?: boolean;
     file?: Express.Multer.File;
     existingImage?: string; 
+    hsn?: string;
 }
 
 export class CategoryRepository {
@@ -21,7 +23,8 @@ export class CategoryRepository {
         return this._model.create({
             name: params.name,
             description: params.description,
-            image: params.image
+            image: params.image,
+            hsn: params.hsn
         });
     }
 

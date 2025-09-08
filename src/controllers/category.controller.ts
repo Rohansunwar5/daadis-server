@@ -2,8 +2,8 @@ import { NextFunction, Request, Response } from "express";
 import categoryService from "../services/category.service";
 
 export const createCategory = async (req: Request, res: Response, next: NextFunction) => {
-    const { name , description  } = req.body;
-    const response = await categoryService.createCategory({ name, description, file: req.file as Express.Multer.File });
+    const { name , description , hsn} = req.body;
+    const response = await categoryService.createCategory({ name, description, file: req.file as Express.Multer.File, hsn });
 
     next(response);
 }
@@ -23,14 +23,15 @@ export const deleteCategory = async (req: Request, res: Response, next: NextFunc
 
 export const updateCategory = async (req: Request, res: Response, next: NextFunction) => {
     const { id } = req.params;
-    const { name, description, isActive, existingImage } = req.body;
+    const { name, description, isActive, existingImage, hsn } = req.body;
     
     const response = await categoryService.updateCategory(id, {
         name,
         description,
         isActive,
         file: req.file as Express.Multer.File,
-        existingImage
+        existingImage,
+        hsn
     });
 
     next(response);

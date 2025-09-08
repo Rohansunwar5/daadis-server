@@ -1,3 +1,4 @@
+import { kMaxLength } from 'buffer';
 import mongoose from 'mongoose';
 
 const categorySchema = new mongoose.Schema(
@@ -18,6 +19,11 @@ const categorySchema = new mongoose.Schema(
       type: String,
       required: true
     },
+    hsn: {
+      type: String,
+      required: true,
+      maxLength: 8, 
+    },
     isActive: {
       type: Boolean,
       default: true,
@@ -33,6 +39,7 @@ export interface ICategory extends mongoose.Schema {
   name: string;
   description?: string;
   image?: string;
+  hsn: string;
   isActive: boolean;
 }
 

@@ -9,6 +9,7 @@ interface CreateCategoryParams {
     description?: string;
     file?: Express.Multer.File;
     existingImage?: string;
+    hsn?: string;
 }
 
 class CategoryService {
@@ -29,7 +30,8 @@ class CategoryService {
         const category = await this._categoryRepository.createCategory({
             name: params.name.trim(),
             description: params.description,
-            image: imageUrl 
+            image: imageUrl,
+            hsn: params.hsn
         });
 
         if(!category) throw new InternalServerError('Failed to create category');
@@ -112,7 +114,8 @@ class CategoryService {
             name: params.name,
             description: params.description,
             isActive: params.isActive,
-            image: imageUrl
+            image: imageUrl,
+            hsn: params.hsn
         };
 
         const updatedCategory = await this._categoryRepository.updateCategory(id, updateData);
