@@ -217,7 +217,7 @@ class AuthService {
   async googleLogin(code: string) {
     const { tokens } = await googleAuthClient.getToken({
       code,
-      redirect_uri: 'https://server.daddis.in/api/auth/google/callback' 
+      redirect_uri: 'https://daadis-server.onrender.com/api/auth/google/callback' 
       // redirect_uri: 'http://localhost:4010/api/auth/google/callback',
     });
     if(!tokens.id_token) throw new BadRequestError('Invalid authorization code');
