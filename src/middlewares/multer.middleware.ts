@@ -22,3 +22,18 @@ const upload = multer({
 export const uploadProductImages = upload.array('images', 10); 
 
 export const uploadCategoryImage = upload.single('image');
+
+export const uploadBannerImages = upload.fields([
+  { name: 'imageUrl', maxCount: 1 },
+  { name: 'bannerElementUrl', maxCount: 1 }
+])
+
+const blogUpload = multer({
+  storage,
+  fileFilter,
+  limits: {
+    fileSize: 15 * 1024 * 1024  
+  }
+});
+
+export const uploadBlogImages = blogUpload.single('blogImage');
