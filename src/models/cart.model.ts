@@ -23,7 +23,8 @@ const cartSchema = new mongoose.Schema(
     {
         user: {
             type: mongoose.Types.ObjectId,
-            required: true,
+            required: false,
+            sparse: true,
         },
         items: [
             cartItemSchema
@@ -65,7 +66,7 @@ export interface ICartItem extends mongoose.Schema {
 }
 
 export interface ICart extends mongoose.Schema {
-    user: mongoose.Types.ObjectId;
+    user?: mongoose.Types.ObjectId;
     items: ICartItem[];
     appliedCoupon?: {
         code: string;

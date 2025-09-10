@@ -59,11 +59,9 @@ class OrderService {
     
     if (!cartDetails.items.length) throw new BadRequestError('Cart is empty')
 
-    
     await this.validateStockAvailability(cartDetails.items);
     const orderNumber = await this.generateOrderNumber();
 
-    // Totals
     const subtotal = cartDetails.totals.subtotal;
     const totalDiscountAmount = cartDetails.totals.discountAmount;
     const shippingCharge = this.calculateShippingCharge(subtotal);

@@ -349,16 +349,6 @@ class CartService {
         if (!product) throw new NotFoundError('Product not found');
         if (!product.isActive) throw new BadRequestError('Product is not available');
         
-        // Validate size requirement
-        // if (product.sizeStock && product.sizeStock.length > 0 && !item.size) {
-        //     throw new BadRequestError('Size selection is required for this product');
-        // }
-        
-        // const sizeStock = product.sizeStock.find(s => s.size === item.size);
-        // if (!sizeStock || sizeStock.stock < item.quantity) {
-        //     throw new BadRequestError('Insufficient stock for selected size');
-        // }
-
         let cart = await this._cartRepository.getCartBySessionId(sessionId);
         if (!cart) {
             cart = await this._cartRepository.createGuestCart(sessionId);
@@ -370,11 +360,6 @@ class CartService {
 
         if (existingItem) {
             const totalQuantity = existingItem.quantity + item.quantity;
-            
-            // Validate total quantity
-            // if (sizeStock.stock < totalQuantity) {
-            //     throw new BadRequestError(`Insufficient stock. Available: ${sizeStock.stock}, requested total: ${totalQuantity}`);
-            // }
             
             return this._cartRepository.updateCartItemBySessionId(
                 sessionId, 
@@ -408,30 +393,6 @@ class CartService {
                     continue;
                 }
 
-                // const sizeStock = product.sizeStock.find(s => s.size === item.size);
-                // if (!sizeStock) {
-                //     issues.push({
-                //         itemId: item._id,
-                //         productId: item.product,
-                //         issue: 'Size no longer available'
-                //     });
-                //     continue;
-                // }
-
-                // if (sizeStock.stock < item.quantity) {
-                //     issues.push({
-                //         itemId: item._id,
-                //         productId: item.product,
-                //         issue: `Only ${sizeStock.stock} items available, but ${item.quantity} requested`
-                //     });
-                //     // Optionally update quantity to available stock
-                //     validItems.push({
-                //         ...item,
-                //         quantity: Math.min(item.quantity, sizeStock.stock)
-                //     });
-                //     continue;
-                // }
-
                 validItems.push(item);
             } catch (error) {
                 issues.push({
@@ -448,6 +409,49 @@ class CartService {
             validItems,
             needsUpdate: issues.length > 0
         };
+    }
+
+    async getGuestCartWithDetails(sessionId: string) {
+        const cart = await this.getGuestCart(sessionId);
+
+        if(!cart.items.length) {
+            return { cart, items: [], totals: { subtotal: 0, discountAmount: 0, total: 0, itemCount: 0 }};
+        }
+
+        const productIds = cart.items.map(item => item.product.toString());
+        const products = await Promise.all(productIds.map(productId => productService.getProductById(productId)));
+
+        const productMap = products.reduce((acc, product) => {
+            if(product) { acc[product._id.toString()] = product;} 
+            return acc;
+        }, {} as Record<string, any>);
+
+        const itemsWithDetails = cart.items.map(item => {
+            const productId = item.product.toString();
+            const product = productMap[productId];
+            if(!product) throw new NotFoundError(`Product not found for ID: ${productId}`);
+
+            return {
+                _id: item._id,
+                product: {
+                    _id: product._id,
+                    name: product.name,
+                    price: product.price,
+                    images: product.images
+                },
+                quantity: item.quantity,
+                addedAt: item.addedAt,
+                itemTotal: product.price * item.quantity
+            }
+        });
+
+        const totals = await this.calculateCartTotal(cart);
+
+        return {
+            cart: { _id: cart._id, sessionId: cart.sessionId },
+            items: itemsWithDetails,
+            totals
+        }
     }
 
 }

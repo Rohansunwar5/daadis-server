@@ -1,6 +1,7 @@
 import { NextFunction, Request, Response } from 'express';
 import cartService from '../services/cart.service';
 import { ApplyDiscountInput, CartItemInput, UpdateCartItemInput } from '../repository/cart.repository';
+import { BadRequestError } from '../errors/bad-request.error';
 
 export const getCart = async (req: Request, res: Response, next: NextFunction) => {
   const { _id: userId } = req.user;
@@ -96,5 +97,38 @@ export const validateCart = async (req: Request, res: Response, next: NextFuncti
         sessionId as string
     );
     
+    next(response);
+};
+
+export const getUniversalCart = async (req: Request, res: Response, next: NextFunction) => {
+    const userId = req.user?._id;
+    const sessionId = req.query.sessionId as string;
+
+    let response;
+    if (userId) {
+        response = await cartService.getCartWithDetails(userId);
+    } else if (sessionId) {
+        response = await cartService.getGuestCartWithDetails(sessionId);
+    } else {
+        throw new BadRequestError('Either user authentication or session ID required');
+    }
+
+    next(response);
+};
+
+export const addItemUniversal = async (req: Request, res: Response, next: NextFunction) => {
+    const userId = req.user?._id;
+    const sessionId = req.query.sessionId as string;
+    const itemData: CartItemInput = req.body;
+
+    let response;
+    if (userId) {
+        response = await cartService.addItemToCart(userId, itemData);
+    } else if (sessionId) {
+        response = await cartService.addItemToGuestCart(sessionId, itemData);
+    } else {
+        throw new BadRequestError('Either user authentication or session ID required');
+    }
+
     next(response);
 };

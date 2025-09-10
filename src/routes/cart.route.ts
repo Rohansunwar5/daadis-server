@@ -3,12 +3,14 @@ import { asyncHandler } from '../utils/asynchandler';
 import { 
   addItemToCart,
   addItemToGuestCart,
+  addItemUniversal,
   applyDiscount,
   clearCartItems,
   deleteCart,
   getCart,
   getCartWithDetails,
   getGuestCart,
+  getUniversalCart,
   removeItemFromCart,
   updateCartItem
 } from '../controllers/cart.controller';
@@ -27,16 +29,14 @@ cartRouter.delete('/', isLoggedIn, asyncHandler(deleteCart));
 
 cartRouter.get('/guest/:sessionId', asyncHandler(getGuestCart));
 cartRouter.post('/guest/:sessionId', asyncHandler(addItemToGuestCart));
-// cart validation route for guest users
+
 cartRouter.post('/validate', asyncHandler(getGuestCart));
 
 // merge guest cart into user cart upon login
 cartRouter.post('/merge', isLoggedIn, asyncHandler(addItemToGuestCart));
-// cartRouter.delete('/discount/:type', isLoggedIn, asyncHandler(removeDiscount));
 
-// Get cart summary/count (lightweight endpoint for header cart icon)
-// cartRouter.get('/summary', isLoggedIn, asyncHandler(getCartSummary));
-
+cartRouter.get('/universal', asyncHandler(getUniversalCart));
+cartRouter.post('/universal', asyncHandler(addItemUniversal));
 
 
 export default cartRouter;

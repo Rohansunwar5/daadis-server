@@ -206,7 +206,7 @@ class PaymentService {
 
         return { 
           payment,
-        //   order: razorpayOrder, 
+          order: razorpayOrder,
           key: config.RAZORPAY_KEY_ID
         };
     }
