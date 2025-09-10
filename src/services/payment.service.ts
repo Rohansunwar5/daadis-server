@@ -204,6 +204,9 @@ class PaymentService {
             razorpayOrderId: razorpayOrder.id
         });
 
+        console.log("payment: ", payment);
+        console.log("order: ", order);
+        
         return { 
           payment,
           order: razorpayOrder,
