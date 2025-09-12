@@ -454,6 +454,28 @@ class CartService {
         }
     }
 
+    async removeDiscount(userId: string, { type }: { type: 'coupon' | 'voucher' | 'all' }) {
+        const cart = await this.getCart(userId);
+        
+        if (!cart.items.length) {
+            throw new BadRequestError('Cart is empty');
+        }
+        
+        // Check if discount exists based on type
+        if (type === 'coupon' && !cart.appliedCoupon) {
+            throw new NotFoundError('No coupon discount applied to cart');
+        }
+        
+        if (type === 'voucher' && !cart.appliedVoucher) {
+            throw new NotFoundError('No voucher discount applied to cart');
+        }
+        
+        if (type === 'all' && !cart.appliedCoupon && !cart.appliedVoucher) {
+            throw new NotFoundError('No discounts applied to cart');
+        }
+        
+        return this._cartRepository.removeDiscount(userId, type);
+    }
 }
 
 export default new CartService(new CartRepository());

@@ -1,6 +1,6 @@
 import { NextFunction, Request, Response } from 'express';
 import cartService from '../services/cart.service';
-import { ApplyDiscountInput, CartItemInput, UpdateCartItemInput } from '../repository/cart.repository';
+import { ApplyDiscountInput, CartItemInput, RemoveDiscountInput, UpdateCartItemInput } from '../repository/cart.repository';
 import { BadRequestError } from '../errors/bad-request.error';
 
 export const getCart = async (req: Request, res: Response, next: NextFunction) => {
@@ -131,4 +131,12 @@ export const addItemUniversal = async (req: Request, res: Response, next: NextFu
     }
 
     next(response);
+};
+
+
+export const removeDiscount = async (req: Request, res: Response, next: NextFunction) => {
+  const { _id: userId } = req.user;
+  const discountData: RemoveDiscountInput = req.body;
+  const response = await cartService.removeDiscount(userId, discountData);
+  next(response);
 };
