@@ -220,4 +220,8 @@ export class ProductRepository {
             stock: 0
         }).select('name code stock');
     }
+
+    async deleteProductPermanently(id: string) {
+        return this._model.findByIdAndDelete(id);
+    }
 }

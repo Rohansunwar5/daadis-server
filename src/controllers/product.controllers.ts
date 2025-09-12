@@ -131,3 +131,11 @@ export const searchProducts = async (req: Request, res: Response, next: NextFunc
 
     next(response);
 };
+
+export const deleteProduct = async (req: Request, res: Response, next: NextFunction) => {
+    const { id } = req.params;
+    const { permanent = false } = req.body;
+    
+    const response = await productService.deleteProduct(id);
+    next(response);
+}

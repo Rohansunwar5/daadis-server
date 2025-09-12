@@ -287,6 +287,23 @@ class ProductService {
                 : 0
         };
     }
+
+    async deleteProduct(id: string) {
+        const product = await this._productRepository.getProductById(id);
+        if (!product) {
+            throw new NotFoundError('Product not found');
+        }
+
+        const deletedProduct = await this._productRepository.deleteProductPermanently(id);
+        if (!deletedProduct) {
+            throw new InternalServerError('Failed to delete product permanently');
+        }
+        return {
+            message: 'Product deleted permanently',
+            productId: id,
+            type: 'hard_delete'
+        };
+    }
 }
 
 export default new ProductService(new ProductRepository());
